@@ -1,22 +1,24 @@
-const { exec, execSync, spawn } = require("child_process");
-const os = require("os");
-const fs = require("fs");
-const path = require("path");
-const si = require("systeminformation");
-const blessed = require("blessed");
-const contrib = require("blessed-contrib");
-const minimist = require("minimist");
-const pty = require("node-pty");
-const { createPublicClient, http } = require("viem");
-const { mainnet } = require("viem/chains");
-const {setupDebugLogging} = require("./helpers")
-const { initializeMonitoring } = require("./monitor");
-const {
-  installMacLinuxConsensusClient,
-  installMacLinuxExecutionClient,
-  installWindowsConsensusClient,
-  installWindowsExecutionClient,
-} = require("./install");
+import { exec, execSync, spawn } from "child_process";
+import os from "os";
+import fs from "fs";
+import path from "path";
+import si from "systeminformation";
+import blessed from "blessed";
+import contrib from "blessed-contrib";
+import minimist from "minimist";
+import pty from "node-pty";
+import { createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import inquirer from "inquirer";
+
+// import { setupDebugLogging } from "./helpers.js";
+// import { initializeMonitoring } from "./monitor.js";
+// import {
+//   installMacLinuxConsensusClient,
+//   installMacLinuxExecutionClient,
+//   installWindowsConsensusClient,
+//   installWindowsExecutionClient,
+// } from "./install.js";
 
 /// Set default command line option values
 let executionClient = "geth";
@@ -27,6 +29,46 @@ const lockFilePath = path.join(os.homedir(), "bgnode", "script.lock");
 const CONFIG = {
   debugLogPath: path.join(os.homedir(), "bgnode", "debugIndex.log"),
 };
+
+const questions = [
+  {
+    type: "list",
+    name: "choice",
+    message: "Please select an option:",
+    choices: ["Option 1", "Option 2", "Option 3"],
+  },
+];
+
+async function promptUser() {
+  try {
+    const answers = await inquirer.prompt(questions);
+    console.log(`You selected: ${answers.choice}`);
+    handleChoice(answers.choice);
+  } catch (error) {
+    console.error("An error occurred:", error);
+  }
+}
+
+function handleChoice(choice) {
+  switch (choice) {
+    case "Option 1":
+      console.log("You chose Option 1");
+      // Add your logic for Option 1 here
+      break;
+    case "Option 2":
+      console.log("You chose Option 2");
+      // Add your logic for Option 2 here
+      break;
+    case "Option 3":
+      console.log("You chose Option 3");
+      // Add your logic for Option 3 here
+      break;
+    default:
+      console.log("Invalid choice");
+  }
+}
+
+promptUser();
 
 // /// just for debugging
 // setupDebugLogging(CONFIG.debugLogPath);
@@ -132,7 +174,7 @@ let consensusExited = false;
 function handleExit() {
   console.log("Received exit signal");
   try {
-      // Check if both child processes have exited
+    // Check if both child processes have exited
     const checkExit = () => {
       if (executionExited && consensusExited) {
         console.log("Both clients exited!");
@@ -170,7 +212,7 @@ function handleExit() {
     // Initial check in case both children are already not running
     checkExit();
   } catch (error) {
-    console.log("Error form handle exit",error)
+    console.log("Error form handle exit", error);
   }
 }
 
@@ -223,7 +265,7 @@ function startClient(clientName, installDir) {
     console.log(`${clientName} process exited with code ${code}`);
     if (clientName === "geth") {
       executionExited = true;
-    } else if (clientName === "prysm"){
+    } else if (clientName === "prysm") {
       consensusExited = true;
     }
   });
@@ -231,24 +273,23 @@ function startClient(clientName, installDir) {
   child.on("error", (err) => {
     console.log(`Error from start client: ${err.message}`);
   });
-  
+
   console.log(clientName, "started");
 
   child.stdout.on("error", (err) => {
     console.error(`Error on stdout of ${clientName}: ${err.message}`);
   });
-  
 }
 
 function isAlreadyRunning() {
   try {
     if (fs.existsSync(lockFilePath)) {
-      const pid = fs.readFileSync(lockFilePath, 'utf8');
+      const pid = fs.readFileSync(lockFilePath, "utf8");
       try {
         process.kill(pid, 0);
         return true;
       } catch (e) {
-        if (e.code === 'ESRCH') {
+        if (e.code === "ESRCH") {
           fs.unlinkSync(lockFilePath);
           return false;
         }
@@ -263,10 +304,9 @@ function isAlreadyRunning() {
 }
 
 function createLockFile() {
-  fs.writeFileSync(lockFilePath, process.pid.toString(), 'utf8');
+  fs.writeFileSync(lockFilePath, process.pid.toString(), "utf8");
   // console.log(process.pid.toString())
 }
-
 
 function removeLockFile() {
   if (fs.existsSync(lockFilePath)) {
@@ -274,35 +314,34 @@ function removeLockFile() {
   }
 }
 
-module.exports = { startClient };
+// module.exports = { startClient };
 
 const jwtDir = path.join(installDir, "bgnode", "jwt");
 const platform = os.platform();
 
-if (["darwin", "linux"].includes(platform)) {
-  installMacLinuxExecutionClient(executionClient, platform, gethVer, rethVer);
-  installMacLinuxConsensusClient(consensusClient, platform, prysmVer);
-} else if (platform === "win32") {
-  installWindowsExecutionClient(executionClient);
-  installWindowsConsensusClient(consensusClient);
-}
+// if (["darwin", "linux"].includes(platform)) {
+//   installMacLinuxExecutionClient(executionClient, platform, gethVer, rethVer);
+//   installMacLinuxConsensusClient(consensusClient, platform, prysmVer);
+// } else if (platform === "win32") {
+//   installWindowsExecutionClient(executionClient);
+//   installWindowsConsensusClient(consensusClient);
+// }
 
-let messageForHeader = "";
-let runsClient = false;
+// let messageForHeader = "";
+// let runsClient = false;
 
-createJwtSecret(jwtDir);
+// createJwtSecret(jwtDir);
 
-if (!isAlreadyRunning()) {
-  startClient(executionClient, installDir);
-  startClient(consensusClient, installDir);
-  messageForHeader = "Node execution"
-  runsClient = true
-  createLockFile();
-} else {
-  console.log("Node already started. Initializing monitoring only.");
-  messageForHeader = "Only dashboard, client already running";
-  runsClient = false;
-}
+// if (!isAlreadyRunning()) {
+//   startClient(executionClient, installDir);
+//   startClient(consensusClient, installDir);
+//   messageForHeader = "Node execution"
+//   runsClient = true
+//   createLockFile();
+// } else {
+//   console.log("Node already started. Initializing monitoring only.");
+//   messageForHeader = "Only dashboard, client already running";
+//   runsClient = false;
+// }
 
-initializeMonitoring(messageForHeader, gethVer, rethVer, prysmVer, runsClient);
-
+// initializeMonitoring(messageForHeader, gethVer, rethVer, prysmVer, runsClient);
